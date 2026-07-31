@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ATS Parse Inspector</title>
+<meta name="description" content="See your resume the way ten ATS parsers read it. A single-page tool that shows where resume parsing breaks, per platform, and how to fix it." />
+<style>
+:root{--paper:#EEF0EA;--card:#FFFFFF;--ink:#161B1E;--muted:#5A645E;--line:#DBDED6;
+  --navy:#0E1F29;--navy2:#16303C;--navyink:#CBD8DC;--glow:#38C6AC;
+  --pass:#0F7A67;--info:#3E6B86;--warn:#A9721A;--fail:#A83A2C;}
+*{box-sizing:border-box;}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color:var(--ink);background:var(--paper);line-height:1.5;-webkit-font-smoothing:antialiased;}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,"Cascadia Mono",monospace;}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 72px;}
+.eyebrow{font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--muted);}
+h1{font-size:clamp(26px,4vw,40px);font-weight:800;letter-spacing:-.02em;margin:.35em 0 .15em;line-height:1.05;}
+.sub{color:var(--muted);max-width:60ch;font-size:15px;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;}
+.grid2{display:grid;grid-template-columns:1fr;gap:16px;}
+@media(min-width:820px){.grid2{grid-template-columns:1fr 1fr;}}
+.label{font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px;}
+textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13.5px;
+  font-family:ui-monospace,Menlo,monospace;background:#FBFCFA;color:var(--ink);resize:vertical;min-height:180px;}
+textarea:focus{outline:2px solid var(--glow);outline-offset:1px;border-color:transparent;}
+.jd{min-height:110px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px;}
+.btn{border:0;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:650;cursor:pointer;
+  background:var(--navy);color:#fff;transition:transform .12s ease,opacity .12s ease;text-decoration:none;display:inline-block;}
+.btn:hover{transform:translateY(-1px);}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+.file{font-size:13px;color:var(--muted);}
+.file label{color:var(--navy2);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+.file input{position:absolute;width:1px;height:1px;opacity:0;}
+.src{font-size:12px;color:var(--muted);margin-top:6px;}
+.src a{color:var(--navy2);}
+
+.panel{background:var(--navy);color:var(--navyink);border-radius:16px;padding:22px 22px 24px;
+  border:1px solid #0a1319;position:relative;overflow:hidden;}
+.panel:before{content:"";position:absolute;inset:0;background:
+  radial-gradient(120% 80% at 100% 0%,rgba(56,198,172,.10),transparent 60%);pointer-events:none;}
+.panel .eyebrow{color:#7FA6A0;}
+.scoreline{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:6px 0 2px;}
+.score{font-size:56px;font-weight:800;letter-spacing:-.03em;color:#fff;font-family:ui-monospace,Menlo,monospace;line-height:1;}
+.verdict{font-size:15px;color:var(--navyink);}
+.bar{height:6px;border-radius:99px;background:#0a1a22;margin:14px 0 20px;overflow:hidden;}
+.bar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--glow),#7FE3D2);transition:width .7s cubic-bezier(.2,.7,.2,1);width:0;}
+.trace{font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.85;}
+.trace .k{color:#6f9089;}
+.trace .v{color:#EAF3F1;}
+.trace .miss{color:#E8927F;}
+.trace .ok{color:var(--glow);}
+.cur{display:inline-block;width:8px;height:15px;background:var(--glow);margin-left:3px;
+  transform:translateY(2px);animation:blink 1.1s steps(1) infinite;}
+@keyframes blink{50%{opacity:0;}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.chip{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;padding:3px 9px;border-radius:99px;
+  background:#0a1a22;border:1px solid #1c3a45;color:#cfe6e0;}
+
+.sec-title{font-size:13px;font-family:ui-monospace,Menlo,monospace;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin:34px 0 12px;display:flex;align-items:center;gap:10px;}
+.sec-title:after{content:"";flex:1;height:1px;background:var(--line);}
+.issue{border:1px solid var(--line);border-left-width:4px;border-radius:10px;background:#fff;padding:14px 16px;margin-bottom:10px;}
+.issue h4{margin:0 0 4px;font-size:15px;display:flex;gap:9px;align-items:center;flex-wrap:wrap;}
+.issue p{margin:0;font-size:13.5px;color:#3c433f;}
+.issue .fix{margin-top:7px;font-size:13px;color:var(--ink);}
+.issue .fix b{font-family:ui-monospace,Menlo,monospace;font-weight:600;color:var(--navy2);
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-right:6px;}
+.sev-fail{border-left-color:var(--fail);} .sev-warn{border-left-color:var(--warn);} .sev-info{border-left-color:var(--info);}
+.tag{font-family:ui-monospace,Menlo,monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  padding:2px 8px;border-radius:5px;font-weight:700;}
+.tag-fail{background:#f7e3df;color:var(--fail);} .tag-warn{background:#f6ecd8;color:var(--warn);}
+.tag-info{background:#e2ecf1;color:var(--info);} .tag-pass{background:#dcefe9;color:var(--pass);}
+
+.matrix{display:grid;grid-template-columns:1fr;gap:8px;}
+@media(min-width:640px){.matrix{grid-template-columns:1fr 1fr;}}
+.pf{border:1px solid var(--line);border-radius:10px;background:#fff;padding:12px 14px;}
+.pf-top{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;}
+.pf-name{font-weight:650;font-size:14.5px;}
+.pf-tier{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--muted);letter-spacing:.08em;}
+.dot{width:9px;height:9px;border-radius:99px;display:inline-block;margin-right:7px;vertical-align:middle;}
+.d-pass{background:var(--pass);} .d-info{background:var(--info);} .d-warn{background:var(--warn);} .d-fail{background:var(--fail);}
+.pf-body{font-size:12.5px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);}
+.pf-body ul{margin:6px 0 0;padding-left:16px;} .pf-body li{margin:2px 0;}
+.pf-body.hidden{display:none;}
+
+.cov{display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap;}
+.cov b{font-size:30px;font-family:ui-monospace,Menlo,monospace;}
+.kw{display:flex;flex-wrap:wrap;gap:6px;}
+.kw span{font-size:12.5px;padding:4px 10px;border-radius:99px;background:#f6ecd8;color:#7a5410;font-family:ui-monospace,Menlo,monospace;}
+.out{white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;
+  background:#0E1F29;color:#EAF3F1;border-radius:12px;padding:18px;line-height:1.7;max-height:360px;overflow:auto;margin-top:14px;}
+.note{font-size:13px;color:#3c433f;background:#eef4f1;border:1px solid #cfe0d9;border-radius:10px;padding:13px 15px;margin-top:14px;}
+.note b{color:var(--navy2);}
+.empty{color:var(--muted);font-size:14px;padding:26px;text-align:center;border:1px dashed var(--line);border-radius:12px;}
+.hidden{display:none;}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">ATS Parse Inspector</div>
+  <h1>See your resume the way ten parsers read it.</h1>
+  <p class="sub">Applicant tracking systems don't look at your layout — they strip it to a text stream and
+    map it into fields. This tool shows where that mapping breaks, per platform, then hands you a clean
+    rebuild. It targets the strictest parser, so it works everywhere. Everything runs in your browser;
+    nothing you paste leaves this page.</p>
+
+  <div style="margin-top:22px">
+    <div class="grid2">
+      <div class="card">
+        <label class="label" for="resume">Your resume — paste text</label>
+        <textarea id="resume" placeholder="Paste your resume as plain text, or upload a .docx below."></textarea>
+        <div class="row">
+          <span class="file">
+            <label for="up">Upload .docx / .txt</label>
+            <input id="up" type="file" accept=".docx,.txt" />
+            — PDFs: paste the text.
+          </span>
+        </div>
+      </div>
+      <div class="card">
+        <label class="label" for="jd">Target job description — optional</label>
+        <textarea id="jd" class="jd" placeholder="Paste a specific posting to get keyword targets drawn straight from it."></textarea>
+        <p class="src">Keyword targets come from this posting only — not a generic list.</p>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn" id="inspect" disabled>Inspect resume</button>
+      <button class="btn ghost hidden" id="clear">Clear</button>
+    </div>
+  </div>
+
+  <div id="results"></div>
+
+  <p class="src" style="margin-top:30px">
+    Parser behavior reflects documented 2026 quirks: Taleo and Workday are the strict extremes,
+    Greenhouse / Lever / Ashby the lenient ones; Workday requires MM/YYYY, header/footer text is dropped
+    across the board, and columns / icons scramble the text stream on legacy parsers.
+  </p>
+</div>
+
+<script>
+"use strict";
+
+var PLATFORMS = [
+  {key:"workday",name:"Workday Recruiting",tier:"strict",note:"Merges multi-column text left-to-right. Wants MM/YYYY dates and fails on seasonal ones. Drops header/footer text."},
+  {key:"taleo",name:"Oracle Taleo",tier:"strict",note:"Legacy, least forgiving. Chokes on columns, Unicode and special characters, and any non-standard layout."},
+  {key:"icims",name:"iCIMS",tier:"strict",note:"Scores and ranks. Struggles with unusual PDF encoding, icons/graphics, and multi-column layouts."},
+  {key:"successfactors",name:"SAP SuccessFactors",tier:"mod",note:"Enterprise parser, moderately strict on layout and special characters."},
+  {key:"greenhouse",name:"Greenhouse",tier:"lenient",note:"Forgiving. Main failure points are contact info in headers/footers and multi-column layouts."},
+  {key:"lever",name:"Lever",tier:"lenient",note:"Modern, lenient with PDF/DOCX. Can miss acronyms that aren't spelled out."},
+  {key:"smartrecruiters",name:"SmartRecruiters",tier:"mod",note:"Moderate tolerance. Single-column with standard headers maps most reliably."},
+  {key:"ashby",name:"Ashby",tier:"lenient",note:"Modern parser, generally lenient with clean PDF/DOCX exports."},
+  {key:"jobvite",name:"Jobvite",tier:"mod",note:"Moderate. Graphics and columns degrade field mapping."},
+  {key:"bullhorn",name:"Bullhorn",tier:"mod",note:"Staffing-focused. Moderate tolerance; prefers clean single-column text."}
+];
+var STRICT_LAYOUT = ["workday","taleo","icims"];
+var RANK = {pass:0,info:1,warn:2,fail:3};
+function worst(a,b){return RANK[a]>=RANK[b]?a:b;}
+
+var STANDARD = {
+  summary:/^(professional\s+summary|summary|profile|professional\s+profile|objective|career\s+summary)\b/i,
+  experience:/^(work\s+experience|professional\s+experience|experience|employment(\s+history)?|work\s+history|career\s+history)\b/i,
+  education:/^(education(\s+and\s+training)?|academic\s+(background|history))\b/i,
+  skills:/^(technical\s+skills|core\s+competencies|skills(\s*&?\s*abilities)?|competencies|areas\s+of\s+expertise|key\s+skills)\b/i,
+  certifications:/^(certifications?(\s*&?\s*licen[cs]es?)?|licen[cs]es?\s*&?\s*certifications?)\b/i,
+  projects:/^(projects|key\s+projects|selected\s+projects)\b/i,
+  awards:/^(awards|honou?rs|awards\s*&?\s*honou?rs)\b/i,
+  languages:/^languages\b/i
+};
+var CREATIVE = /^(my\s+journey|professional\s+journey|where\s+i.?ve\s+been|what\s+i\s+do|my\s+story|the\s+journey|about\s+me|my\s+background|career\s+snapshot|my\s+expertise|what\s+i\s+bring|my\s+toolkit|my\s+skill\s?set|the\s+work|my\s+work|the\s+story\s+so\s+far)\s*$/i;
+var ICONS = /[\u2190-\u21FF\u2300-\u23FF\u2500-\u259F\u25A0-\u25FF\u2600-\u26FF\u2700-\u27BF\u2B00-\u2BFF\uE000-\uF8FF]|[\u{1F000}-\u{1FAFF}]/u;
+var RATING = /(★|☆|●●|○○|◐|◑|▮|▯|█|▓|▒|░|\b\d\s?\/\s?(?:5|10)\b)/u;
+var NON_LATIN = /[\u0370-\u03FF\u0400-\u04FF\u0530-\u06FF\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]/;
+var SEASONAL = /\b(spring|summer|fall|autumn|winter)\s+\d{4}\b/i;
+var MMYYYY = /\b(0?[1-9]|1[0-2])\/\d{4}\b/;
+var DMY = /\b(0?[1-9]|[12]\d|3[01])\/(0?[1-9]|1[0-2])\/\d{2,4}\b/;
+var ISO = /\b\d{4}-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/;
+var EMAIL = /[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i;
+var PHONE = /(?:\+?\d[\d\s().\-]{8,}\d)/;
+var LINKEDIN = /linkedin\.com\/in\/|linkedin\.com\/pub\//i;
+var FANCY_BULLET = /^[ \t]*[▪◦‣∙·➤►▶✦✧»※→◆]/;
+var METRIC = /(\$\s?\d|\b\d{1,3}(?:,\d{3})+\b|\b\d+(?:\.\d+)?\s?%|\b\d+\s?(?:k|K|million|billion|hires?|reqs?|days|users|clients?)\b)/;
+var COMMON_ACRONYMS = /\b(ATS|HRIS|KPI|SLA|OKR|SaaS|CRM|DEI|OFCCP|EEO|GDPR|API|SQL|ETL|ROI|SEO)\b/;
+var STOP = new Set(("a an and are as at be by for from has have in is it its of on or that the to with we you your our will their they this these those us who whom what which about into over under able strong excellent good great across within using use used work working role team teams help support drive lead ability skills experience years year plus etc via per including include").split(/\s+/));
+
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+
+function analyze(text, jd){
+  var raw = text || "";
+  var lines = raw.split(/\r?\n/);
+  var nonEmpty = lines.map(function(l){return l.trim();}).filter(Boolean);
+  var issues = [];
+  function add(o){issues.push(o);}
+  function allP(sev){return PLATFORMS.map(function(p){return [p.key,sev];});}
+
+  // section headers
+  var found = {}, ordered = [];
+  lines.forEach(function(line){
+    var t = line.trim(); if(!t) return;
+    Object.keys(STANDARD).forEach(function(k){
+      if(!found[k] && STANDARD[k].test(t) && t.length<45){found[k]=true;ordered.push(k);}
+    });
+  });
+  var creative = lines.map(function(l){return l.trim();}).filter(function(t){return t && t.length<45 && CREATIVE.test(t);});
+  var missingEssential = ["experience","education","skills"].filter(function(k){return !found[k];});
+
+  if(creative.length){
+    add({id:"creative",severity:"fail",title:"Non-standard section headers",
+      detail:'Headers like "'+esc(creative[0])+"\" don't tell a parser where a section begins. It may index the whole block as one field and lose every keyword inside it.",
+      fix:"Rename to the exact headers parsers key on: Work Experience, Education, Skills, Certifications.",
+      platforms:allP("fail")});
+  }
+  if(missingEssential.length){
+    add({id:"missing",severity:"warn",title:"No standard header for: "+missingEssential.join(", "),
+      detail:"A parser looks for literal section headers to split the document into fields. Without them, that content may be dropped or merged into the wrong field.",
+      fix:"Add plain headers (Work Experience / Education / Skills), each on its own line.",
+      platforms:PLATFORMS.map(function(p){return [p.key,STRICT_LAYOUT.indexOf(p.key)>=0?"fail":"warn"];})});
+  }
+
+  // columns / tables
+  var tabbed = lines.filter(function(l){return /\t/.test(l);}).length;
+  var multiGap = lines.filter(function(l){return /\S {3,}\S/.test(l);}).length;
+  var colScore = tabbed + multiGap;
+  if(colScore>=4){
+    add({id:"columns",severity:"fail",title:"Likely tables or multi-column layout",scramble:true,
+      detail:"Several lines contain tab stops or wide internal gaps — the signature of columns or tables. Strict parsers read these left-to-right and scramble the text stream, so titles, dates and companies land in the wrong fields.",
+      fix:"Rebuild as a single column. One fact per line: no side-by-side content, no tables, no text boxes.",
+      platforms:PLATFORMS.map(function(p){return [p.key,STRICT_LAYOUT.indexOf(p.key)>=0?"fail":"warn"];})});
+  } else if(colScore>=2){
+    add({id:"columns-maybe",severity:"warn",title:"Possible column formatting",scramble:colScore>=3,
+      detail:"A few lines show wide gaps or tabs that can hint at columns. If your source file uses a two-column template or tables, the parsed order may differ from what you see.",
+      fix:"Confirm the layout is single-column. Two-column templates read out of order on most parsers.",
+      platforms:PLATFORMS.map(function(p){return [p.key,STRICT_LAYOUT.indexOf(p.key)>=0?"warn":"info"];})});
+  }
+
+  // icons / skill bars
+  if(ICONS.test(raw) || RATING.test(raw)){
+    add({id:"glyphs",severity:"fail",title:RATING.test(raw)?"Icon glyphs or skill-rating graphics":"Icon / symbol glyphs",
+      detail:"Icons (phone/email symbols, arrows) and skill bars or star ratings are read as garbage characters or dropped entirely. A parser can't read a five-star Java rating — it sees nothing.",
+      fix:"Replace icons with text labels (Phone: / Email: / LinkedIn:) and delete skill bars and star ratings.",
+      platforms:PLATFORMS.map(function(p){return [p.key,(p.key==="taleo"||p.key==="icims")?"fail":"warn"];})});
+  }
+
+  // dates
+  if(SEASONAL.test(raw)){
+    add({id:"seasonal",severity:"warn",title:"Seasonal date formats",
+      detail:'Dates like "Summer 2023" fail Workday\'s date parser, which expects a numeric month. The role can lose its start or end date entirely.',
+      fix:"Convert to MM/YYYY (e.g., 06/2023). Use 'Present' for current roles.",
+      platforms:PLATFORMS.map(function(p){return [p.key,p.key==="workday"?"fail":(p.key==="taleo"||p.key==="successfactors")?"warn":"info"];})});
+  }
+  if((DMY.test(raw)||ISO.test(raw)) && !MMYYYY.test(raw)){
+    add({id:"intl",severity:"info",title:"Non-US date format detected",
+      detail:"DD/MM/YYYY or YYYY-MM-DD dates are read correctly by many parsers, but US-configured ones (Workday, Taleo, iCIMS) can misorder day and month. This is a US-parser quirk, not a problem with the format itself.",
+      fix:"For US applications, MM/YYYY is the safest form. Keep your real dates — just switch the separator style.",
+      platforms:PLATFORMS.map(function(p){return [p.key,STRICT_LAYOUT.indexOf(p.key)>=0?"warn":"info"];})});
+  }
+
+  // contact
+  var em = raw.match(EMAIL); em = em?em[0]:null;
+  var ph = raw.match(PHONE); ph = ph?ph[0].trim():null;
+  var li = LINKEDIN.test(raw);
+  if(!em || !ph){
+    add({id:"contact",severity:"warn",title:"Contact info incomplete in body text"+(!em?" (no email)":"")+(!ph?" (no phone)":""),
+      detail:"Parsers only read the main document body. Contact details placed in a Word header/footer are invisible to them — the most common reason a contactable candidate looks unreachable.",
+      fix:"Put name, email and phone as plain lines at the very top of the body, not in the header zone.",
+      platforms:PLATFORMS.map(function(p){return [p.key,(p.key==="greenhouse"||p.key==="workday")?"warn":"info"];})});
+  }
+
+  // bullets
+  if(lines.some(function(l){return FANCY_BULLET.test(l);})){
+    add({id:"bullets",severity:"info",title:"Decorative bullet characters",
+      detail:"Ornamental bullets (▪ ‣ ➤ ◆) sometimes render as stray symbols in the parsed text.",
+      fix:"Use a plain hyphen (-) or standard bullet (•).",platforms:allP("info")});
+  }
+
+  // non-Latin: informational, never a penalty
+  if(NON_LATIN.test(raw)){
+    add({id:"unicode",severity:"info",title:"Non-Latin script present",
+      detail:"Your resume includes non-Latin characters — for example a name in its original script. This is completely valid. The only caveat is that Oracle Taleo, an older parser, handles Unicode poorly and may mis-store those characters.",
+      fix:"Keep your name in its original script. Add a romanized form in parentheses beside it — as an addition, never a replacement. Do not strip characters to suit a legacy parser.",
+      platforms:PLATFORMS.map(function(p){return [p.key,p.key==="taleo"?"info":"pass"];})});
+  }
+
+  // acronyms
+  if(COMMON_ACRONYMS.test(raw)){
+    add({id:"acronyms",severity:"info",title:"Acronyms may not be indexed on both forms",
+      detail:'Taleo and Lever don\'t always match an acronym to its spelled-out form. If a job requires "Human Resources Information System" and your resume only says HRIS, the keyword match can miss.',
+      fix:"Spell out each acronym once with the short form in parentheses: Human Resources Information System (HRIS).",
+      platforms:PLATFORMS.map(function(p){return [p.key,(p.key==="taleo"||p.key==="lever")?"info":"pass"];})});
+  }
+
+  // length
+  var words = nonEmpty.join(" ").split(/\s+/).filter(Boolean).length;
+  if(words && words<150){
+    add({id:"short",severity:"warn",title:"Very little text",
+      detail:"Under ~150 words usually means content is trapped in tables, text boxes or images the parser couldn't reach — or the resume is genuinely thin.",
+      fix:"Confirm all content is live text in the body, not inside graphics or boxes.",platforms:allP("warn")});
+  }
+
+  // per-platform aggregation
+  var platformResults = PLATFORMS.map(function(p){
+    var status="pass", reasons=[];
+    issues.forEach(function(iss){
+      var found2 = iss.platforms.filter(function(x){return x[0]===p.key;})[0];
+      var sev = found2?found2[1]:"pass";
+      if(sev!=="pass"){status=worst(status,sev); if(RANK[sev]>=RANK.warn) reasons.push(iss.title);}
+    });
+    return {key:p.key,name:p.name,tier:p.tier,note:p.note,status:status,reasons:reasons};
+  });
+
+  // score
+  var score=100;
+  issues.forEach(function(iss){score -= iss.severity==="fail"?20:iss.severity==="warn"?8:1;});
+  score = Math.max(5,Math.min(100,score));
+  var verdict = score>=85?"Clean parse across strict systems":score>=65?"Parses, with risks on strict systems":score>=40?"Likely field loss on strict parsers":"High parse-failure risk";
+
+  // trace
+  var name=null;
+  for(var i=0;i<nonEmpty.length;i++){
+    var t=nonEmpty[i];
+    if(EMAIL.test(t)||/^\+?\d/.test(t)||LINKEDIN.test(t)) continue;
+    var isHeader=false; Object.keys(STANDARD).forEach(function(k){if(STANDARD[k].test(t))isHeader=true;});
+    if(isHeader||t.length>45) continue;
+    name=t; break;
+  }
+
+  // keywords from JD only
+  var keywords=null;
+  if(jd && jd.trim().length>40){
+    var resumeLower=raw.toLowerCase();
+    var freq={};
+    (jd.toLowerCase().match(/[a-z][a-z0-9+#]*(?:[./-][a-z0-9+#]+)*/g)||[]).forEach(function(w){
+      if(STOP.has(w)||w.length<3) return; freq[w]=(freq[w]||0)+1;
+    });
+    var rankedArr=Object.keys(freq).map(function(w){return [w,freq[w]];}).sort(function(a,b){return b[1]-a[1];});
+    var top=rankedArr.slice(0,30).map(function(x){return x[0];});
+    var present=top.filter(function(w){return resumeLower.indexOf(w)>=0;});
+    var cov=top.length?Math.round(present.length/top.length*100):0;
+    var missing=top.filter(function(w){return resumeLower.indexOf(w)<0;}).slice(0,18);
+    keywords={coverage:cov,missing:missing};
+  }
+
+  return {ready:nonEmpty.length>0,issues:issues,platformResults:platformResults,score:score,verdict:verdict,
+    trace:{name:name,email:em,phone:ph,linkedin:li,sections:ordered,missingEssential:missingEssential,
+      scramble:issues.some(function(i){return i.scramble;})},keywords:keywords};
+}
+
+// ---------- rebuild prompt (handoff to Claude) ----------
+var REBUILD_SYSTEM =
+"You are an ATS resume formatter. Rewrite the resume below into single-column, plain-text, ATS-parseable format optimized for the strictest parsers (Oracle Taleo, Workday). Rules: "+
+"(1) Use only these standard headers where applicable: Professional Summary, Work Experience, Education, Skills, Certifications, Projects. "+
+"(2) Reverse-chronological. Per role, put 'Title | Company | Location' on one line, then dates on the next line as MM/YYYY-MM/YYYY (use 'Present' for current). Convert seasonal or year-only dates to MM/YYYY only when the source makes the month unambiguous; otherwise keep the year. "+
+"(3) Spell out each acronym on first use with the short form in parentheses. "+
+"(4) Plain '-' bullets only. No tables, columns, icons, graphics or special glyphs. "+
+"(5) Preserve the candidate's name EXACTLY as written, including diacritics, non-Latin characters, multi-part surnames, or mononyms. Never anglicize, transliterate away, or drop any part of a name. If a name is in a non-Latin script, keep the original and ADD a romanized form in parentheses after it, never instead of it. "+
+"(6) Never invent employers, titles, dates, degrees, or metrics. Only reorganize and clean what is provided. "+
+"(7) If a job description is given, use its terminology only where the candidate's real experience already supports it; never fabricate skills. "+
+"Output ONLY the finished resume as plain text, no commentary.";
+function buildPrompt(resume,jd){
+  return REBUILD_SYSTEM+"\n\nRESUME:\n"+resume+"\n\nJOB DESCRIPTION (optional):\n"+(jd&&jd.trim()?jd:"none");
+}
+
+// ---------- rendering ----------
+var $ = function(id){return document.getElementById(id);};
+var resumeEl=$("resume"), jdEl=$("jd"), inspectBtn=$("inspect"), clearBtn=$("clear"), resultsEl=$("results"), upEl=$("up");
+
+function tagHtml(s){var m={fail:"fail",warn:"warn",info:"info",pass:"ok"};return '<span class="tag tag-'+s+'">'+m[s]+'</span>';}
+
+resumeEl.addEventListener("input",function(){
+  inspectBtn.disabled=!resumeEl.value.trim();
+  clearBtn.classList.toggle("hidden",!resumeEl.value.trim());
+});
+
+clearBtn.addEventListener("click",function(){
+  resumeEl.value="";jdEl.value="";resultsEl.innerHTML=renderIntro();inspectBtn.disabled=true;clearBtn.classList.add("hidden");
+  window.scrollTo({top:0,behavior:"smooth"});
+});
+
+upEl.addEventListener("change",async function(e){
+  var f=e.target.files&&e.target.files[0]; if(!f) return;
+  try{
+    if(/\.docx$/i.test(f.name)){
+      var mammoth=await loadMammoth();
+      var buf=await f.arrayBuffer();
+      var r=await mammoth.extractRawText({arrayBuffer:buf});
+      resumeEl.value=r.value;
+    } else {
+      resumeEl.value=await f.text();
+    }
+    resumeEl.dispatchEvent(new Event("input"));
+  }catch(err){
+    alert("Couldn't read that file. Paste the text instead, or upload a .docx / .txt. (.docx reading needs an internet connection.)");
+  }
+});
+
+function loadMammoth(){
+  return new Promise(function(res,rej){
+    if(window.mammoth) return res(window.mammoth);
+    var s=document.createElement("script");
+    s.src="https://unpkg.com/mammoth/mammoth.browser.min.js";
+    s.onload=function(){res(window.mammoth);};
+    s.onerror=function(){rej(new Error("cdn"));};
+    document.head.appendChild(s);
+  });
+}
+
+inspectBtn.addEventListener("click",function(){
+  var r=analyze(resumeEl.value,jdEl.value);
+  resultsEl.innerHTML=renderResult(r);
+  attachResultHandlers(r);
+  animateScore(r.score);
+});
+
+function renderIntro(){
+  var cards=PLATFORMS.map(function(p){
+    return '<div class="pf"><div class="pf-top" style="cursor:default"><span class="pf-name">'+esc(p.name)+
+      '</span><span class="pf-tier">'+(p.tier==="strict"?"STRICT":p.tier==="mod"?"MODERATE":"LENIENT")+
+      '</span></div><div class="pf-body" style="border-top:none;padding-top:6px">'+esc(p.note)+'</div></div>';
+  }).join("");
+  return '<div class="sec-title">The parsers it checks against</div><div class="matrix">'+cards+'</div>';
+}
+
+function renderResult(r){
+  var t=r.trace;
+  var traceRows=""+
+    '<div><span class="k">name    </span> <span class="'+(t.name?"v":"miss")+'">'+(t.name?esc(t.name):"— not detected")+'</span></div>'+
+    '<div><span class="k">email   </span> <span class="'+(t.email?"v":"miss")+'">'+(t.email?esc(t.email):"— not found in body")+'</span></div>'+
+    '<div><span class="k">phone   </span> <span class="'+(t.phone?"v":"miss")+'">'+(t.phone?esc(t.phone):"— not found in body")+'</span></div>'+
+    '<div><span class="k">linkedin</span> <span class="'+(t.linkedin?"v":"miss")+'">'+(t.linkedin?"found":"— none")+'</span></div>'+
+    '<div style="margin-top:8px"><span class="k">sections</span> '+
+      (t.sections.length?'<span class="chips">'+t.sections.map(function(s){return '<span class="chip">'+esc(s)+'</span>';}).join("")+'</span>':'<span class="miss">— no standard headers found</span>')+'</div>'+
+    (t.missingEssential.length?'<div><span class="k">missing </span> <span class="miss">'+esc(t.missingEssential.join(", "))+'</span></div>':"")+
+    (t.scramble?'<div style="margin-top:6px"><span class="miss">⚠ column/table layout — text stream may be reordered by strict parsers</span></div>':"")+
+    '<div style="margin-top:4px"><span class="ok">end of stream</span><span class="cur"></span></div>';
+
+  var panel='<div class="sec-title">Parser\'s-eye view</div>'+
+    '<div class="panel"><div class="eyebrow">Parse-safety · strictest-parser basis</div>'+
+    '<div class="scoreline"><span class="score" id="scoreNum">0</span><span class="verdict">'+esc(r.verdict)+'</span></div>'+
+    '<div class="bar"><i id="scoreBar"></i></div>'+
+    '<div class="eyebrow" style="margin-bottom:8px">Extracted field map</div>'+
+    '<div class="trace">'+traceRows+'</div></div>';
+
+  var issuesHtml='<div class="sec-title">What breaks &amp; how to fix it</div>';
+  if(!r.issues.length){
+    issuesHtml+='<div class="empty">No parsing issues detected. The field map above is what a recruiter\'s ATS will see.</div>';
+  } else {
+    issuesHtml+=r.issues.map(function(iss){
+      return '<div class="issue sev-'+iss.severity+'"><h4>'+tagHtml(iss.severity)+" "+esc(iss.title)+'</h4>'+
+        '<p>'+iss.detail+'</p><div class="fix"><b>fix</b>'+esc(iss.fix)+'</div></div>';
+    }).join("");
+  }
+
+  var kwHtml="";
+  if(r.keywords){
+    var c=r.keywords.coverage;
+    var color=c>=70?"var(--pass)":c>=45?"var(--warn)":"var(--fail)";
+    kwHtml='<div class="sec-title">Keyword coverage vs. this posting</div><div class="card">'+
+      '<div class="cov"><b style="color:'+color+'">'+c+'%</b><span class="sub" style="margin:0">of the posting\'s top terms appear in your resume. '+
+      (c<70?"70%+ is the commonly cited screen threshold.":"Above the usual screen threshold.")+'</span></div>'+
+      (r.keywords.missing.length?'<label class="label" style="margin-top:6px">Missing terms — add only where your real experience supports them</label><div class="kw">'+
+        r.keywords.missing.map(function(k){return "<span>"+esc(k)+"</span>";}).join("")+'</div>':"")+'</div>';
+  }
+
+  var pfHtml='<div class="sec-title">Per-platform read</div><div class="matrix">'+
+    r.platformResults.map(function(p){
+      var reasons=p.reasons.length?'<ul>'+p.reasons.map(function(x){return "<li>"+esc(x)+"</li>";}).join("")+"</ul>":"";
+      return '<div class="pf" data-key="'+p.key+'"><div class="pf-top"><span class="pf-name"><span class="dot d-'+p.status+'"></span>'+esc(p.name)+
+        '</span>'+tagHtml(p.status)+'</div><div class="pf-body hidden">'+esc(p.note)+reasons+'</div></div>';
+    }).join("")+'</div>';
+
+  var rebuildHtml='<div class="sec-title">Clean rebuild</div><div class="card">'+
+    '<p class="sub" style="margin:0 0 12px">A public page can\'t safely call an AI model, so the rebuild is a one-click handoff: '+
+    'copy a ready-made prompt that already contains your resume and the formatting rules, paste it into Claude, and you\'ll get back '+
+    'single-column plain text with standard headers and MM/YYYY dates. The prompt tells the model to reorganize only what you provided '+
+    'and never invent experience.</p>'+
+    '<div class="row" style="margin-top:0">'+
+    '<button class="btn" id="copyPrompt">Copy rebuild prompt</button>'+
+    '<a class="btn ghost" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude</a>'+
+    '<button class="btn ghost" id="togglePrompt">Show prompt</button></div>'+
+    '<div class="out hidden" id="promptBox"></div></div>';
+
+  var note='<div class="note"><b>A deliberate limit:</b> this tool fixes how a machine <i>reads</i> your resume — layout, '+
+    'headers, dates, encoding. It never recommends removing or anglicizing your name, or dropping affiliations, languages, or '+
+    'credentials that signal your background. None of that improves parsing, and "whitening" a resume is not what these systems '+
+    'require. Keyword targets are pulled from the specific posting you paste, so the bar is that role\'s language — not a generic template.</div>';
+
+  return panel+issuesHtml+kwHtml+pfHtml+rebuildHtml+note;
+}
+
+function attachResultHandlers(r){
+  Array.prototype.forEach.call(document.querySelectorAll(".pf[data-key]"),function(card){
+    card.querySelector(".pf-top").addEventListener("click",function(){
+      card.querySelector(".pf-body").classList.toggle("hidden");
+    });
+  });
+  var promptText=buildPrompt(resumeEl.value,jdEl.value);
+  var copyBtn=$("copyPrompt"), toggleBtn=$("togglePrompt"), box=$("promptBox");
+  if(box) box.textContent=promptText;
+  if(copyBtn) copyBtn.addEventListener("click",function(){
+    (navigator.clipboard?navigator.clipboard.writeText(promptText):Promise.reject())
+      .then(function(){copyBtn.textContent="Copied ✓ — paste into Claude";setTimeout(function(){copyBtn.textContent="Copy rebuild prompt";},2000);})
+      .catch(function(){if(box){box.classList.remove("hidden");toggleBtn.textContent="Hide prompt";}copyBtn.textContent="Select & copy below";});
+  });
+  if(toggleBtn) toggleBtn.addEventListener("click",function(){
+    var hid=box.classList.toggle("hidden");toggleBtn.textContent=hid?"Show prompt":"Hide prompt";
+  });
+}
+
+function animateScore(target){
+  var numEl=$("scoreNum"), barEl=$("scoreBar");
+  if(!numEl) return;
+  var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce){numEl.textContent=target;barEl.style.width=target+"%";return;}
+  var start=null, dur=600;
+  function step(ts){
+    if(!start)start=ts;
+    var p=Math.min(1,(ts-start)/dur);
+    var v=Math.round(target*(1-Math.pow(1-p,3)));
+    numEl.textContent=v;barEl.style.width=v+"%";
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// initial state
+resultsEl.innerHTML=renderIntro();
+</script>
+</body>
+</html>
